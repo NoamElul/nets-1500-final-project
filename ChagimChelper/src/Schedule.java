@@ -6,10 +6,11 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class Schedule {
     List<Course> courses;
+    LocalDate startDate;
+    LocalDate endDate;
 
     public Schedule(Path filePath) throws IOException {
         this(Utils.readFileToString(filePath));
@@ -56,8 +57,14 @@ public class Schedule {
                                 ZonedDateTime parsedDateTime = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmssX")
                                         .parse(untilString)
                                         .query(ZonedDateTime::from);
-                                LocalDateTime pennDateTime = parsedDateTime.withZoneSameInstant(Utils.PENN_ZONEID).toLocalDateTime();
-                                course.endDate = pennDateTime.toLocalDate();
+                                if (pennLabsMode) {
+                                    // See https://github.com/pennlabs/penn-courses/issues/490
+                                    course.endDate = parsedDateTime.toLocalDate();
+                                } else {
+                                    LocalDateTime pennDateTime = parsedDateTime.withZoneSameInstant(Utils.PENN_ZONEID).toLocalDateTime();
+                                    course.endDate = pennDateTime.toLocalDate();
+                                }
+
                             } else if (comp.startsWith("BYDAY=")) {
                                 String allDaysString = comp.substring(6);
                                 String[] dayStrings = CachedRegex.pattern(",").split(allDaysString);
@@ -69,6 +76,12 @@ public class Schedule {
                     }
                 }
                 course.assertValid();
+                if (this.startDate == null || course.startDate.isBefore(this.startDate)) {
+                    this.startDate = course.startDate;
+                }
+                if (this.endDate == null || course.endDate.isAfter(this.endDate)) {
+                    this.endDate = course.endDate;
+                }
                 courses.add(course);
             }
         }

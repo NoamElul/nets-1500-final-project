@@ -1,6 +1,4 @@
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZonedDateTime;
+import java.time.*;
 import java.util.Objects;
 
 public class Interval {
@@ -10,7 +8,6 @@ public class Interval {
     public Interval(ZonedDateTime start, ZonedDateTime end) {
         this.start = start;
         this.end = end;
-        this.convertToCanonical();
     }
 
     public Interval(LocalDateTime start, LocalDateTime end) {
@@ -47,6 +44,10 @@ public class Interval {
 
     public boolean contains(ZonedDateTime dt) {
         return this.start.isBefore(dt) && this.end.isAfter(dt);
+    }
+
+    public Duration duration() {
+        return Duration.between(this.start, this.end);
     }
 
     @Override
