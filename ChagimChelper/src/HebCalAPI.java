@@ -144,20 +144,30 @@ public class HebCalAPI {
             }
 
             var eventNamesFiltered = eventNames.stream()
-                    .map(HolidayInterval::removeRomanNumeral)
+                    .map(HolidayInterval::cleanName)
                     .distinct()
                     .toArray(String[]::new);
             this.eventName = String.join("/", eventNamesFiltered);
         }
 
-        private static String removeRomanNumeral(String name) {
-            Pattern romanNumeral = CachedRegex.pattern("(.*?)[ ]+[IVX]+", Pattern.CASE_INSENSITIVE);
-            Matcher m = romanNumeral.matcher(name);
-            if (!m.matches()) {
-                return name;
-            } else {
-                return m.group(1);
+        private static String cleanName(String name) {
+            {
+                Pattern romanNumeral = CachedRegex.pattern("(.*?)[ ]+[IVX]+", Pattern.CASE_INSENSITIVE);
+                Matcher m = romanNumeral.matcher(name);
+                if (m.matches()) {
+                    return m.group(1);
+                }
             }
+
+            {
+                Pattern roshHashana = CachedRegex.pattern("(rosh hashana)[ ]+\\d{4}", Pattern.CASE_INSENSITIVE);
+                Matcher m = roshHashana.matcher(name);
+                if (m.matches()) {
+                    return m.group(1);
+                }
+            }
+
+            return name;
         }
 
         private static boolean containsShabbat(Interval interval) {

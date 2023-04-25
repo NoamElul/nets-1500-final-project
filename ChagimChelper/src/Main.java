@@ -50,13 +50,22 @@ public class Main {
 
         var holidays = HebCalAPI.getHolidays(schedule.startDate.minusDays(7), schedule.endDate.plusDays(7));
 
+        boolean anyConflicts = false;
         for (var h : holidays) {
             var conflicts = schedule.meetingsInInterval(h.interval);
+            if (!conflicts.isEmpty()) {
+                System.out.println();
+                anyConflicts = true;
+            }
             for (var c: conflicts) {
                 System.out.println("The course " + c.courseName() + " meeting from " + timeSlot(c.meetingTime())
                         + " on " + dateSlot(c.meetingTime()) + " conflicts with the holiday of " + h.eventName + ".");
 
             }
+        }
+        System.out.println();
+        if (!anyConflicts) {
+            System.out.println("There were no conflicts with your schedule");
         }
     }
 
