@@ -19,7 +19,7 @@ public class Schedule {
     LocalDate endDate;
 
     public Schedule(Path filePath) throws IOException {
-        this(new String(Files.readAllBytes(filePath), StandardCharsets.UTF_8));
+        this(Files.readString(filePath));
     }
 
     public Schedule(URI url) throws IOException, InterruptedException {
@@ -42,7 +42,7 @@ public class Schedule {
                 pennLabsMode = true;
             } else if (line.equals("BEGIN:VEVENT")) {
                 // Process VEVENT
-                Course course = new Course();
+                WeeklyCourse course = new WeeklyCourse();
                 while (++lineNum < icsLines.length) {
                     line = icsLines[lineNum];
                     if (line.equals("END:VEVENT")) {
@@ -110,7 +110,7 @@ public class Schedule {
         for (var c : this.courses) {
             Interval meetingTime = c.meetingOnDate(date);
             if (meetingTime != null) {
-                rtn.add(new CourseMeeting(c.name, meetingTime));
+                rtn.add(new CourseMeeting(c.name(), meetingTime));
             }
         }
 
@@ -211,20 +211,44 @@ public class Schedule {
         };
     }
 
+    public interface Course {
+        /**
+         * Return the name of the course
+         * @return  The name of the course
+         */
+        String name();
 
-    public static class Course {
-        public String name;
-        public Set<DayOfWeek> days;
-        public LocalTime startTime;
-        public LocalTime endTime;
-        public LocalDate startDate;
-        public LocalDate endDate;
+        /**
+         * Returns the meeting time of this course on the specified date, or null if there is none
+         *
+         * @param date  The date to check
+         * @return      The time that this course meets on that date, or null
+         */
+        Interval meetingOnDate(LocalDate date);
 
-        public Course() {
-            // Create uninitialized Course
+        boolean isValid();
+
+        default void assertValid() {
+            if (!isValid()) {
+                throw new IllegalArgumentException("Course is not valid; some fields are not assigned: " + this);
+            }
+        }
+    }
+
+
+    public static class WeeklyCourse implements Course {
+        protected String name;
+        protected Set<DayOfWeek> days;
+        protected LocalTime startTime;
+        protected LocalTime endTime;
+        protected LocalDate startDate;
+        protected LocalDate endDate;
+
+        public WeeklyCourse() {
+            // Create uninitialized course, to fill with data
         }
 
-        public Course(String name, Set<DayOfWeek> days, LocalTime startTime, LocalTime endTime, LocalDate startDate, LocalDate endDate) {
+        public WeeklyCourse(String name, Set<DayOfWeek> days, LocalTime startTime, LocalTime endTime, LocalDate startDate, LocalDate endDate) {
             this.name = name;
             this.days = new TreeSet<>(days);
             this.startTime = startTime;
@@ -233,12 +257,12 @@ public class Schedule {
             this.endDate = endDate;
         }
 
-        /**
-         * Returns the meeting time of this course on the specified date, or null if there is none
-         *
-         * @param date  The date to check
-         * @return      The time that this course meets on that date, or null
-         */
+        @Override
+        public String name() {
+            return this.name;
+        }
+
+        @Override
         public Interval meetingOnDate(LocalDate date) {
             if (date.isBefore(this.startDate) || date.isAfter(this.endDate)) {
                 return null;
@@ -250,19 +274,14 @@ public class Schedule {
             return new Interval(date.atTime(this.startTime).atZone(Utils.PENN_ZONEID), date.atTime(this.endTime).atZone(Utils.PENN_ZONEID));
         }
 
+        @Override
         public boolean isValid() {
             return (name != null) && (days != null) && (startTime != null) && (endTime != null) && (startDate != null) && (endDate != null);
         }
 
-        public void assertValid() {
-            if (!isValid()) {
-                throw new IllegalArgumentException("Course is not valid; some fields are not assigned: " + this);
-            }
-        }
-
         @Override
         public String toString() {
-            return "Course{" +
+            return "WeeklyCourse{" +
                     "name='" + name + '\'' +
                     ", days=" + days +
                     ", startTime=" + startTime +
@@ -276,7 +295,7 @@ public class Schedule {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            Course course = (Course) o;
+            WeeklyCourse course = (WeeklyCourse) o;
             return Objects.equals(name, course.name) && Objects.equals(days, course.days) && Objects.equals(startTime, course.startTime) && Objects.equals(endTime, course.endTime) && Objects.equals(startDate, course.startDate) && Objects.equals(endDate, course.endDate);
         }
 
