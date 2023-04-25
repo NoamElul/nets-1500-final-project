@@ -15,10 +15,6 @@ public class Utils {
     public static final String PENN_TIMEZONE = "America/New_York";
     public static final ZoneId PENN_ZONEID = ZoneId.of(PENN_TIMEZONE);
 
-    public static String readFileToString(Path path) throws IOException {
-        return new String(Files.readAllBytes(path), StandardCharsets.UTF_8);
-    }
-
     public static ZonedDateTime instantToZoned(Instant i) {
         return ZonedDateTime.ofInstant(i, PENN_ZONEID);
     }

@@ -1,4 +1,10 @@
 import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
@@ -13,7 +19,11 @@ public class Schedule {
     LocalDate endDate;
 
     public Schedule(Path filePath) throws IOException {
-        this(Utils.readFileToString(filePath));
+        this(new String(Files.readAllBytes(filePath), StandardCharsets.UTF_8));
+    }
+
+    public Schedule(URI url) throws IOException, InterruptedException {
+        this(Schedule.getScheduleFromURL(url));
     }
 
     public Schedule(String icsText) {
@@ -274,6 +284,16 @@ public class Schedule {
         public int hashCode() {
             return Objects.hash(name, days, startTime, endTime, startDate, endDate);
         }
+    }
+
+    private static String getScheduleFromURL(URI url) throws IOException, InterruptedException {
+        HttpClient client = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.ALWAYS).build();
+        HttpRequest request = HttpRequest.newBuilder().uri(url).build();
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() != 200) {
+            throw new RuntimeException("The response returned status code " + response.statusCode());
+        }
+        return response.body();
     }
 
 }

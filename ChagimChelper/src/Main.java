@@ -1,4 +1,5 @@
 import java.io.IOException;
+import java.net.URI;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Scanner;
@@ -38,15 +39,24 @@ public class Main {
 
     private static void testBoth() throws Throwable {
         System.out.print("Enter the path to the .ics file with your schedule: ");
-        String filename = (new Scanner(System.in)).nextLine();
-        while (filename.startsWith("\"") && filename.endsWith("\"")) {
-            filename = filename.substring(1, filename.length() - 1);
+        String path = (new Scanner(System.in)).nextLine();
+        while (path.startsWith("\"") && path.endsWith("\"")) {
+            path = path.substring(1, path.length() - 1);
         }
-        Path filepath = Path.of(filename);
-        System.out.print("You entered: ");
-        System.out.println(filepath);
+        Schedule schedule;
+        if (path.startsWith("http")) {
+            URI url = URI.create(path);
+            System.out.print("You entered: ");
+            System.out.println(path);
 
-        var schedule = new Schedule(filepath);
+            schedule = new Schedule(url);
+        } else {
+            Path filepath = Path.of(path);
+            System.out.print("You entered: ");
+            System.out.println(filepath);
+
+            schedule = new Schedule(filepath);
+        }
 
         var holidays = HebCalAPI.getHolidays(schedule.startDate.minusDays(7), schedule.endDate.plusDays(7));
 
