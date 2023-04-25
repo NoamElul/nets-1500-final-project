@@ -135,13 +135,29 @@ public class HebCalAPI {
             }
             this.interval = new Interval(startDateTime, endDateTime);
 
-            if (containsShabbat(this.interval)) {
-                eventNames.add("Shabbat");
-            }
             if (eventNames.isEmpty()) {
-                eventNames.add("Yom Tov");
+                if (containsShabbat(this.interval)) {
+                    eventNames.add("Shabbat");
+                } else {
+                    eventNames.add("Yom Tov");
+                }
             }
-            this.eventName = String.join("/", eventNames);
+
+            var eventNamesFiltered = eventNames.stream()
+                    .map(HolidayInterval::removeRomanNumeral)
+                    .distinct()
+                    .toArray(String[]::new);
+            this.eventName = String.join("/", eventNamesFiltered);
+        }
+
+        private static String removeRomanNumeral(String name) {
+            Pattern romanNumeral = CachedRegex.pattern("(.*?)[ ]+[IVX]+", Pattern.CASE_INSENSITIVE);
+            Matcher m = romanNumeral.matcher(name);
+            if (!m.matches()) {
+                return name;
+            } else {
+                return m.group(1);
+            }
         }
 
         private static boolean containsShabbat(Interval interval) {
