@@ -9,9 +9,10 @@ public class Main {
     public static void main(String[] args) throws Throwable {
         System.out.println("Welcome to Chagim Chelper: a tool to help you track which classes you may " +
                 "miss for Jewish holidays.");
-        System.out.println("We need to know which classes you are in, so please go on PennCoursePlan and download the .ics file with your schedule.");
+        System.out.println("We need to know which classes you are in, so please go on PennCoursePlan and download the .ics file or .ics link with your schedule.");
+        System.out.println("Alternatively, you can download the .ics of a Google Calendar with just your classes by going to settings and downloading your schedule using the provided .ics secret address.");
         testBoth();
-        System.out.print("Would you like us to generate emails you can send to your professors (Y/N)?");
+        System.out.print("Would you like us to generate emails you can send to your professors (Y/N)? ");
         String response = (new Scanner(System.in)).nextLine();
         if (response.contains("Y") || response.contains("y")) {
             generateEmails();
