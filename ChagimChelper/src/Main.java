@@ -38,7 +38,7 @@ public class Main {
     }
 
     private static void testBoth() throws Throwable {
-        System.out.print("Enter the path to the .ics file with your schedule: ");
+        System.out.print("Enter the filepath or URL to the .ics file with your schedule: ");
         String path = (new Scanner(System.in)).nextLine();
         while (path.startsWith("\"") && path.endsWith("\"")) {
             path = path.substring(1, path.length() - 1);
