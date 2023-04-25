@@ -42,23 +42,26 @@ public class Schedule {
                 pennLabsMode = true;
             } else if (line.equals("BEGIN:VEVENT")) {
                 // Process VEVENT
-                WeeklyCourse course = new WeeklyCourse();
+                String courseName = null;
+                LocalDateTime startDateTimePenn = null;
+                LocalDateTime endDateTimePenn = null;
+
+                Set<DayOfWeek> rruleWeeklyDays = null;
+                LocalDateTime rruleUntilPenn = null;
+
                 while (++lineNum < icsLines.length) {
                     line = icsLines[lineNum];
                     if (line.equals("END:VEVENT")) {
                         break;
                     } else if (line.startsWith("SUMMARY:")) {
-                        course.name = line.substring(8);
+                        courseName = line.substring(8);
                     }
                     else if (line.startsWith("DTSTART")) {
                         ZonedDateTime parsedDateTime = parseDTString(line, pennLabsMode);
-                        LocalDateTime pennDateTime = parsedDateTime.withZoneSameInstant(Utils.PENN_ZONEID).toLocalDateTime();
-                        course.startDate = pennDateTime.toLocalDate();
-                        course.startTime = pennDateTime.toLocalTime();
+                        startDateTimePenn = parsedDateTime.withZoneSameInstant(Utils.PENN_ZONEID).toLocalDateTime();
                     } else if (line.startsWith("DTEND")) {
                         ZonedDateTime parsedDateTime = parseDTString(line, pennLabsMode);
-                        LocalDateTime pennDateTime = parsedDateTime.withZoneSameInstant(Utils.PENN_ZONEID).toLocalDateTime();
-                        course.endTime = pennDateTime.toLocalTime();
+                        endDateTimePenn = parsedDateTime.withZoneSameInstant(Utils.PENN_ZONEID).toLocalDateTime();
                     } else if (line.startsWith("RRULE:")) {
                         String[] components = CachedRegex.pattern("[:;]").split(line);
                         for (String comp : components) {
@@ -69,31 +72,63 @@ public class Schedule {
                                         .query(ZonedDateTime::from);
                                 if (pennLabsMode) {
                                     // See https://github.com/pennlabs/penn-courses/issues/490
-                                    course.endDate = parsedDateTime.toLocalDate();
+                                    rruleUntilPenn = parsedDateTime.toLocalDateTime();
                                 } else {
-                                    LocalDateTime pennDateTime = parsedDateTime.withZoneSameInstant(Utils.PENN_ZONEID).toLocalDateTime();
-                                    course.endDate = pennDateTime.toLocalDate();
+                                    rruleUntilPenn = parsedDateTime.withZoneSameInstant(Utils.PENN_ZONEID).toLocalDateTime();
                                 }
 
                             } else if (comp.startsWith("BYDAY=")) {
                                 String allDaysString = comp.substring(6);
                                 String[] dayStrings = CachedRegex.pattern(",").split(allDaysString);
-                                course.days = Arrays.stream(dayStrings)
+                                rruleWeeklyDays = Arrays.stream(dayStrings)
                                         .map(Schedule::parseDayOfWeek)
                                         .collect(Collectors.toSet());
                             }
                         }
                     }
                 }
-                course.assertValid();
-                if (this.startDate == null || course.startDate.isBefore(this.startDate)) {
-                    this.startDate = course.startDate;
+
+                if (courseName == null || startDateTimePenn == null || endDateTimePenn == null) {
+                    System.out.println("Could not find info for a course, skipping:");
+                    System.out.println("courseName = " + courseName + ", startDateTimePenn = " + startDateTimePenn + ", endDateTimePenn = " + endDateTimePenn);
+                    continue;
                 }
-                if (this.endDate == null || course.endDate.isAfter(this.endDate)) {
-                    this.endDate = course.endDate;
+
+                Course course = null;
+                if (rruleWeeklyDays != null) {
+                    WeeklyCourse courseW = new WeeklyCourse(courseName, rruleWeeklyDays,
+                            startDateTimePenn.toLocalTime(), endDateTimePenn.toLocalTime(),
+                            startDateTimePenn.toLocalDate(), (rruleUntilPenn == null) ? null : rruleUntilPenn.toLocalDate());
+                    course = courseW;
+
+                    if (this.startDate == null || (courseW.startDate != null && this.startDate.isAfter(courseW.startDate))) {
+                        this.startDate = courseW.startDate;
+                    }
+                    if (this.endDate == null || (courseW.endDate != null && this.endDate.isBefore(courseW.endDate))) {
+                        this.endDate = courseW.endDate;
+                    }
+
+                } else {
+                    SingletonCourse courseS = new SingletonCourse(courseName, startDateTimePenn, endDateTimePenn);
+                    course = courseS;
+                    if (this.startDate == null || (courseS.interval.start != null && courseS.interval.start.toLocalDate().isBefore(this.startDate))) {
+                        this.startDate = courseS.interval.start.toLocalDate();
+                    }
+                    if (this.endDate == null || (courseS.interval.end != null && courseS.interval.end.toLocalDate().isAfter(this.endDate))) {
+                        this.endDate = courseS.interval.end.toLocalDate();
+                    }
                 }
                 courses.add(course);
             }
+        }
+
+        for (Course c : this.courses) {
+            if (c instanceof WeeklyCourse wc) {
+                if (wc.endDate == null) {
+                    wc.endDate = this.endDate;
+                }
+            }
+            c.assertValid();
         }
     }
 
@@ -167,15 +202,24 @@ public class Schedule {
      * @throws IllegalArgumentException  If the string cannot be parsed
      */
     private static ZonedDateTime parseDTString(String dtString, boolean pennLabsOverride) throws IllegalArgumentException {
-        Pattern p = CachedRegex.pattern("[^:;]+(?:;TZID=([^:;]*))?:([0-9A-Z]+)");
-        Matcher m = p.matcher(dtString);
-        if (!m.matches()) {
-            throw new IllegalArgumentException("String could not be matched");
+        String[] colonSplit = dtString.split(":");
+        if (colonSplit.length != 2) {
+            throw new IllegalArgumentException("Invalid string split: '" + dtString + "' split into " + Arrays.toString(colonSplit));
         }
-        String dateString = m.group(2);
-        String timeZoneString = m.group(1);
-        if (timeZoneString != null && timeZoneString.isEmpty()) {
-            timeZoneString = null;
+        String dateString = colonSplit[1];
+        String[] semicolonSplit = colonSplit[0].split(";");
+
+        boolean dateMode = false;
+        String timeZoneString = null;
+        for (int i = 1; i < semicolonSplit.length; i++) {
+            if (semicolonSplit[i].startsWith("TZID=")) {
+                if (timeZoneString != null) {
+                    throw new IllegalArgumentException("Multiple time zones specified: '" + dtString + "'");
+                }
+                timeZoneString = semicolonSplit[i].substring(5);
+            } else if (semicolonSplit[i].equals("VALUE=DATE")) {
+                dateMode = true;
+            }
         }
 
         if (dateString.endsWith("Z")) {
@@ -191,11 +235,27 @@ public class Schedule {
         }
 
         ZoneId timeZone = ZoneId.of(timeZoneString);
-        LocalDateTime date = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss")
-                .parse(dateString)
-                .query(LocalDateTime::from);
 
-        return ZonedDateTime.of(date, timeZone);
+        if (!dateMode) {
+            LocalDateTime date = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss")
+                    .parse(dateString)
+                    .query(LocalDateTime::from);
+
+            return ZonedDateTime.of(date, timeZone);
+        } else {
+            LocalDate date = DateTimeFormatter.ofPattern("yyyyMMdd")
+                    .parse(dateString)
+                    .query(LocalDate::from);
+
+            boolean isEnd = semicolonSplit[0].equals("DTEND");
+            if (isEnd) {
+                return date.atTime(LocalTime.MAX).atZone(timeZone);
+            } else {
+                return date.atStartOfDay(timeZone);
+            }
+        }
+
+
     }
 
     private static DayOfWeek parseDayOfWeek(String s) {
@@ -235,6 +295,58 @@ public class Schedule {
         }
     }
 
+    public static class SingletonCourse implements Course {
+        protected String name;
+        protected Interval interval;
+
+        public SingletonCourse(String name, LocalDateTime startDateTime, LocalDateTime endDateTime) {
+            this.name = name;
+            this.interval = new Interval(startDateTime, endDateTime);
+        }
+
+        @Override
+        public String name() {
+            return this.name;
+        }
+
+        @Override
+        public Interval meetingOnDate(LocalDate date) {
+            if (!this.interval.start.toLocalDate().isAfter(date)
+            && !this.interval.end.toLocalDate().isBefore(date)) {
+                return this.interval;
+            } else {
+                return null;
+            }
+        }
+
+        @Override
+        public boolean isValid() {
+            return this.name != null && this.interval != null
+                    && this.interval.start != null && this.interval.end != null;
+        }
+
+        @Override
+        public String toString() {
+            return "SingletonCourse{" +
+                    "name='" + name + '\'' +
+                    ", interval=" + interval +
+                    '}';
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            SingletonCourse that = (SingletonCourse) o;
+            return Objects.equals(name, that.name) && Objects.equals(interval, that.interval);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(name, interval);
+        }
+    }
+
 
     public static class WeeklyCourse implements Course {
         protected String name;
@@ -243,10 +355,6 @@ public class Schedule {
         protected LocalTime endTime;
         protected LocalDate startDate;
         protected LocalDate endDate;
-
-        public WeeklyCourse() {
-            // Create uninitialized course, to fill with data
-        }
 
         public WeeklyCourse(String name, Set<DayOfWeek> days, LocalTime startTime, LocalTime endTime, LocalDate startDate, LocalDate endDate) {
             this.name = name;
