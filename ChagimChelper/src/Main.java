@@ -21,7 +21,7 @@ public class Main {
     }
 
     private static void generateEmails() throws Throwable {
-        System.out.print("Enter the path to the .ics file with your schedule: ");
+        System.out.print("Enter the filepath or URL to the .ics file with your schedule: ");
         String filename = (new Scanner(System.in)).nextLine();
         while (filename.startsWith("\"") && filename.endsWith("\"")) {
             filename = filename.substring(1, filename.length() - 1);
