@@ -1,5 +1,6 @@
 .idea
 out/
+chagimChelperEmails.txt
 
 # Compiled class file
 *.class
