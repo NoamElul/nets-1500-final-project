@@ -3,29 +3,71 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+/**
+ * A class representing a user's course schedule.
+ */
 public class Schedule {
+    /**
+     * A list of the user's courses
+     */
     List<Course> courses;
+    /**
+     * The earliest date of any course meeting
+     */
     LocalDate startDate;
+    /**
+     * The latest date of any course meeting
+     */
     LocalDate endDate;
 
+    /**
+     * Parse the user's schedule from a .ics file
+     *
+     * @param filePath  The path to the file, which must be in the .ics format
+     */
     public Schedule(Path filePath) throws IOException {
         this(Files.readString(filePath));
     }
 
+    /**
+     * Request the user's schedule from a url
+     *
+     * @param url  The URL to request data from. The response must be a .ics calendar file
+     */
     public Schedule(URI url) throws IOException, InterruptedException {
         this(Schedule.getScheduleFromURL(url));
     }
 
+    /**
+     * Request the user's .ics schedule from a url
+     *
+     * @param url  The url to request from
+     * @return     The response body as a string
+
+     */
+    private static String getScheduleFromURL(URI url) throws IOException, InterruptedException {
+        HttpClient client = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.ALWAYS).build();
+        HttpRequest request = HttpRequest.newBuilder().uri(url).build();
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() != 200) {
+            throw new RuntimeException("The response returned status code " + response.statusCode());
+        }
+        return response.body();
+    }
+
+    /**
+     * Parse the user's schedule from a .ics file represented as plaintext.
+     *
+     * @param icsText  The text of the .ics file
+     */
     public Schedule(String icsText) {
         String icsTextConcat = CachedRegex.pattern("\\R[ \\t]", Pattern.UNICODE_CHARACTER_CLASS).matcher(icsText).replaceAll("");
         String[] icsLines = CachedRegex.pattern("\\R", Pattern.UNICODE_CHARACTER_CLASS).split(icsTextConcat);
@@ -132,7 +174,14 @@ public class Schedule {
         }
     }
 
+    /**
+     * A record representing a single course meeting
+     *
+     * @param courseName   The name of the course
+     * @param meetingTime  The interval of time of the course meeting
+     */
     public record CourseMeeting(String courseName, Interval meetingTime) {}
+
     /**
      * Get a list of course meeting times on the specified day
      *
@@ -178,6 +227,7 @@ public class Schedule {
 
         return rtn;
     }
+
     /**
      * Parse a DTSTART or DTEND line from an ics file.
      *
@@ -258,6 +308,12 @@ public class Schedule {
 
     }
 
+    /**
+     * Parse a string representing a day of the week to a java.time.DayOfWeek object
+     *
+     * @param s  The abbreviated day of the week, as used in a .ics file
+     * @return   A DayOfWeek object representing that day of the week.
+     */
     private static DayOfWeek parseDayOfWeek(String s) {
         return switch (s) {
             case "SU" -> DayOfWeek.SUNDAY;
@@ -271,9 +327,14 @@ public class Schedule {
         };
     }
 
+    /**
+     * A class representing a course. Courses usually meet weekly (see {@link WeeklyCourse}), but
+     * in some cases they may have only a single meeting (see {@link SingletonCourse})
+     */
     public interface Course {
         /**
-         * Return the name of the course
+         * Returns the name of the course
+         *
          * @return  The name of the course
          */
         String name();
@@ -286,8 +347,16 @@ public class Schedule {
          */
         Interval meetingOnDate(LocalDate date);
 
+        /**
+         * Check if a Course has all its essentially fields set
+         *
+         * @return  True if the Course is valid, false otherwis.
+         */
         boolean isValid();
 
+        /**
+         * Throw an exception if this.isValid() returns false;
+         */
         default void assertValid() {
             if (!isValid()) {
                 throw new IllegalArgumentException("Course is not valid; some fields are not assigned: " + this);
@@ -295,8 +364,17 @@ public class Schedule {
         }
     }
 
+    /**
+     * A class representing a course which meets only once
+     */
     public static class SingletonCourse implements Course {
+        /**
+         * The name of the course
+         */
         protected String name;
+        /**
+         * The interval of the course meeting
+         */
         protected Interval interval;
 
         public SingletonCourse(String name, LocalDateTime startDateTime, LocalDateTime endDateTime) {
@@ -348,12 +426,33 @@ public class Schedule {
     }
 
 
+    /**
+     * A class which represents a weekly recurring course
+     */
     public static class WeeklyCourse implements Course {
+        /**
+         * The name of the course
+         */
         protected String name;
+        /**
+         * The days of the week that the course meets
+         */
         protected Set<DayOfWeek> days;
+        /**
+         * The start time of the course meeting
+         */
         protected LocalTime startTime;
+        /**
+         * The end time of the course meeting
+         */
         protected LocalTime endTime;
+        /**
+         * The earliest date this course can meet on
+         */
         protected LocalDate startDate;
+        /**
+         * The latest date this course can meet on
+         */
         protected LocalDate endDate;
 
         public WeeklyCourse(String name, Set<DayOfWeek> days, LocalTime startTime, LocalTime endTime, LocalDate startDate, LocalDate endDate) {
@@ -411,16 +510,6 @@ public class Schedule {
         public int hashCode() {
             return Objects.hash(name, days, startTime, endTime, startDate, endDate);
         }
-    }
-
-    private static String getScheduleFromURL(URI url) throws IOException, InterruptedException {
-        HttpClient client = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.ALWAYS).build();
-        HttpRequest request = HttpRequest.newBuilder().uri(url).build();
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-        if (response.statusCode() != 200) {
-            throw new RuntimeException("The response returned status code " + response.statusCode());
-        }
-        return response.body();
     }
 
 }

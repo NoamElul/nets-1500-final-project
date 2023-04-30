@@ -8,15 +8,27 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.time.temporal.ChronoUnit;
-import java.time.temporal.TemporalUnit;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * A class representing the API of hebcal.com, which is used to retrieve holiday information
+ * This class cannot be constructed; it contains only static methods
+ */
 public class HebCalAPI {
+    /**
+     * This class cannot be constructed; it contains only static methods
+     */
     private HebCalAPI() {}
 
+    /**
+     * Get all the holidays between the given start and end dates
+     *
+     * @param startDate  The starting date, assumed to be in Penn's timezone
+     * @param endDate    The ending date, assumed to be in Penn's timezone
+     * @return           A list of holidays in the give time period
+     */
     public static List<HolidayInterval> getHolidays(LocalDate startDate, LocalDate endDate) throws IOException, InterruptedException {
         String url = getURL(startDate, endDate);
         String response = getResponse(url);
@@ -25,6 +37,13 @@ public class HebCalAPI {
         return parsedReponse;
     }
 
+    /**
+     * Generate the url used to request data from the api
+     *
+     * @param startDate  The starting date, assumed to be in Penn's timezone
+     * @param endDate    The ending date, assumed to be in Penn's timezone
+     * @return           The url, as a string
+     */
     private static String getURL(LocalDate startDate, LocalDate endDate) {
         DateTimeFormatter formatter = DateTimeFormatter.ISO_LOCAL_DATE;
         return "https://www.hebcal.com/hebcal?cfg=json&v=1&maj=on&leyning=off&c=on&geo=zip&zip=19104"
@@ -32,6 +51,12 @@ public class HebCalAPI {
                 + "&end=" + endDate.format(formatter);
     }
 
+    /**
+     * Request data from the api, and return the body as a string
+     *
+     * @param url  The api url to request from, as a string
+     * @return     The response body, as a string
+     */
     private static String getResponse(String url) throws IOException, InterruptedException {
         URI requestUri = URI.create(url);
         HttpClient client = HttpClient.newHttpClient();
@@ -43,6 +68,12 @@ public class HebCalAPI {
         return response.body();
     }
 
+    /**
+     * Splits the JSON response into a list of relevant objects (sets of key-value pairs)
+     *
+     * @param response  The response body as text
+     * @return          The response, split into a list of objects
+     */
     private static ArrayList<Map<String, String>> splitResponse(String response) {
         Pattern itemsPat = CachedRegex.pattern("\"items\"\\s*:\\s*\\[([^\\[\\]]+)\\]");
         Matcher m1 = itemsPat.matcher(response);
@@ -83,6 +114,12 @@ public class HebCalAPI {
         return rtn;
     }
 
+    /**
+     * Parse the split response into a list of HolidayInterval objects
+     *
+     * @param rawList  The list of objects returned by {@link HebCalAPI#splitResponse(String response)}
+     * @return         A list of HolidayInterval objects
+     */
     private static ArrayList<HolidayInterval> parseList(ArrayList<Map<String, String>> rawList) {
         ArrayList<HolidayInterval> rtn = new ArrayList<>(5 + rawList.size() / 3);
 
@@ -123,6 +160,9 @@ public class HebCalAPI {
         return rtn;
     }
 
+    /**
+     * A class representing a holiday, and the interval of time it takes place in
+     */
     public static class HolidayInterval {
         public String eventName;
         public Interval interval;
@@ -150,6 +190,12 @@ public class HebCalAPI {
             this.eventName = String.join("/", eventNamesFiltered);
         }
 
+        /**
+         * Return a cleaned version of the name of a holiday.
+         *
+         * @param name  The raw name of the holiday
+         * @return      A cleaned version of the name
+         */
         private static String cleanName(String name) {
             {
                 Pattern romanNumeral = CachedRegex.pattern("(.*?)[ ]+[IVX]+", Pattern.CASE_INSENSITIVE);
@@ -170,6 +216,12 @@ public class HebCalAPI {
             return name;
         }
 
+        /**
+         * Checks if a given interval contains the Sabbath
+         *
+         * @param interval  The interval to check
+         * @return          True if the interval contains shabbat, false if otherwise
+         */
         private static boolean containsShabbat(Interval interval) {
             if (interval.duration().toDays() >= 7) {
                 return true;

@@ -9,11 +9,19 @@ import java.util.List;
 import java.util.Scanner;
 import java.nio.file.Path;
 
+/**
+ * The main class
+ */
 public class Main {
     private Schedule schedule;
     private List<HebCalAPI.HolidayInterval> holidays;
     private List<Conflict> conflicts;
 
+    /**
+     * The entry point to the program
+     *
+     * @param args  Does not accept any command-line arguments
+     */
     public static void main(String[] args) throws Throwable {
         Main mainObj = new Main();
         System.out.println("Welcome to Chagim Chelper: a tool to help you track which classes you may " +
@@ -33,7 +41,11 @@ public class Main {
 
     private record Conflict(HebCalAPI.HolidayInterval holiday, List<Schedule.CourseMeeting> courseMeetings) {}
 
-    private void setupAndPrompt() throws Throwable {
+    /**
+     * Prompt the user for their calendar, then download the relevant holiday information
+     * from the HebCal API, and finally calculate the conflicts in the schedule.
+     */
+    private void setupAndPrompt() throws IOException, InterruptedException {
         System.out.print("Enter the filepath or URL to the .ics file with your schedule: ");
         String path = (new Scanner(System.in)).nextLine();
         while (path.startsWith("\"") && path.endsWith("\"")) {
@@ -64,7 +76,10 @@ public class Main {
         }
     }
 
-    private void printConflicts() throws Throwable {
+    /**
+     * Print the conflicts to the terminal.
+     */
+    private void printConflicts() {
         for (var c : conflicts) {
             if (!c.courseMeetings().isEmpty()) {
                 System.out.println();
@@ -81,8 +96,11 @@ public class Main {
     }
 
 
-    private void generateEmails() throws Throwable {
-        //FINISH IMPLEMENTING
+    /**
+     * Generate emails that the user could send to professors informing them of the class they
+     * will be missing.
+     */
+    private void generateEmails() throws IOException {
         System.out.println("Please enter your name: ");
         String name = (new Scanner(System.in)).nextLine();
         File file = new File("chagimChelperEmails.txt");
@@ -147,12 +165,24 @@ public class Main {
     }
 
 
+    /**
+     * Format an interval as a time range, e.g. "11:45 AM to 12:30 PM"
+     *
+     * @param interval  The interval to format. Only time information is taken into account
+     * @return          The formatted string.
+     */
     private String timeSlotString(Interval interval) {
         // For 24-hour clock format instead of am/pm, replace "hh:mm a" with "HH:mm"
         DateTimeFormatter dtf = DateTimeFormatter.ofPattern("hh:mm a");
         return dtf.format(interval.start) + " to " + dtf.format(interval.end);
     }
 
+    /**
+     * Format an interval as a date range, e.g. "4/30" or "5/6 & 5/7"
+     *
+     * @param interval  The interval to format. Only date information is taken into account
+     * @return          The formatted string.
+     */
     private static String dateSlotString(Interval interval) {
         DateTimeFormatter dtf = DateTimeFormatter.ofPattern("MM/dd");
         String startDateString = dtf.format(interval.start);
