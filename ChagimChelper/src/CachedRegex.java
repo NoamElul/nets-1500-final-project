@@ -7,7 +7,7 @@ import java.util.regex.Pattern;
  * for the same pattern (for example, if we call a method multiple times that contains a pattern).
  */
 public class CachedRegex {
-    private CachedRegex() {};
+    private CachedRegex() {}
 
     /**
      * The key class used in our map of cached Regex patterns. Patterns are only considered
@@ -17,7 +17,7 @@ public class CachedRegex {
      * @param flags          The integer flags used to create the Regex pattern
      */
     private record PatternKey(String patternString, Integer flags) {
-        protected Pattern toPattern() {
+        private Pattern toPattern() {
             if (this.flags == null) {
                 return Pattern.compile(this.patternString);
             } else {
@@ -26,7 +26,7 @@ public class CachedRegex {
         }
     }
 
-    private static Map<PatternKey, Pattern> map = new HashMap<>();
+    private static final Map<PatternKey, Pattern> map = new HashMap<>();
 
     /**
      * Either compiles the given string to a Pattern, or returns an already-compiled cached version

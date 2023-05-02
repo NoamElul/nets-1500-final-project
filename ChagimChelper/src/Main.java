@@ -1,4 +1,3 @@
-import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.net.URI;
@@ -22,20 +21,25 @@ public class Main {
      *
      * @param args  Does not accept any command-line arguments
      */
-    public static void main(String[] args) throws Throwable {
-        Main mainObj = new Main();
-        System.out.println("Welcome to Chagim Chelper: a tool to help you track which classes you may " +
-                "miss for Jewish holidays.");
-        System.out.println("We need to know which classes you are in, so please go on PennCoursePlan and download the .ics file or .ics link with your schedule.");
-        System.out.println("Alternatively, you can download the .ics of a Google Calendar with just your classes by going to settings and downloading your schedule using the provided .ics secret address.");
-        mainObj.setupAndPrompt();
-        mainObj.printConflicts();
-        System.out.print("Would you like us to generate emails you can send to your professors (Y/N)? ");
-        String response = (new Scanner(System.in)).nextLine();
-        if (response.contains("Y") || response.contains("y")) {
-            mainObj.generateEmails();
-        } else {
-            System.out.print("Okay, thank you for using Chagim Chelper!");
+    public static void main(String[] args) {
+        try {
+            Main mainObj = new Main();
+            System.out.println("Welcome to Chagim Chelper: a tool to help you track which classes you may " +
+                    "miss for Jewish holidays.");
+            System.out.println("We need to know which classes you are in, so please go on PennCoursePlan and download the .ics file or .ics link with your schedule.");
+            System.out.println("Alternatively, you can download the .ics of a Google Calendar with just your classes by going to settings and downloading your schedule using the provided .ics secret address.");
+            mainObj.setupAndPrompt();
+            mainObj.printConflicts();
+            System.out.print("Would you like us to generate emails you can send to your professors (Y/N)? ");
+            String response = (new Scanner(System.in)).nextLine();
+            if (response.contains("Y") || response.contains("y")) {
+                mainObj.generateEmails();
+            } else {
+                System.out.print("Okay, thank you for using Chagim Chelper!");
+            }
+        } catch (Exception e) {
+            System.out.print("An error occurred. Please try again.");
+            System.exit(1);
         }
     }
 
@@ -45,7 +49,7 @@ public class Main {
      * Prompt the user for their calendar, then download the relevant holiday information
      * from the HebCal API, and finally calculate the conflicts in the schedule.
      */
-    private void setupAndPrompt() throws IOException, InterruptedException {
+    private void setupAndPrompt() {
         System.out.print("Enter the filepath or URL to the .ics file with your schedule: ");
         String path = (new Scanner(System.in)).nextLine();
         while (path.startsWith("\"") && path.endsWith("\"")) {
@@ -100,65 +104,75 @@ public class Main {
      * Generate emails that the user could send to professors informing them of the class they
      * will be missing.
      */
-    private void generateEmails() throws IOException {
+    private void generateEmails() {
         System.out.println("Please enter your name: ");
         String name = (new Scanner(System.in)).nextLine();
-        File file = new File("chagimChelperEmails.txt");
+        FileWriter fileWriter;
         try {
-            boolean result = file.createNewFile();
+            fileWriter = new FileWriter("chagimChelperEmails.txt");
         } catch (IOException e) {
-            System.out.println("Error occurred creating email file.");
+            System.out.println("An error occurred while opening the email file 'chagimChelperEmails.txt' for writing.");
+            System.exit(1);
+            throw new RuntimeException("System.exit() did not exit");
         }
 
-        FileWriter fileWriter = new FileWriter("chagimChelperEmails.txt");
+        try {
 
-        HashMap<String, List<String>> conflictsPerCourse = new HashMap<>();
-        for (var conf : this.conflicts) {
-            if (!conf.courseMeetings.isEmpty()) {
-                System.out.println();
-            }
-            for (var c: conf.courseMeetings()) {
-                String course = c.courseName();
-                if (conflictsPerCourse.containsKey(course)) {
-                    List<String> existingConflicts = conflictsPerCourse.get(course);
-                    existingConflicts.add("I will be missing class on " + dateSlotString(c.meetingTime()) + " for the holiday of " + conf.holiday().eventName + ".");
-                    conflictsPerCourse.put(course, existingConflicts);
-                } else {
-                    List<String> newConflictList = new ArrayList<String>();
-                    newConflictList.add("I will be missing class on " + dateSlotString(c.meetingTime()) + " for the holiday of " + conf.holiday().eventName + ".");
-                    conflictsPerCourse.put(course, newConflictList);
+            HashMap<String, List<String>> conflictsPerCourse = new HashMap<>();
+            for (var conf : this.conflicts) {
+                if (!conf.courseMeetings.isEmpty()) {
+                    System.out.println();
+                }
+                for (var c : conf.courseMeetings()) {
+                    String course = c.courseName();
+                    if (conflictsPerCourse.containsKey(course)) {
+                        List<String> existingConflicts = conflictsPerCourse.get(course);
+                        existingConflicts.add("I will be missing class on " + dateSlotString(c.meetingTime()) + " for the holiday of " + conf.holiday().eventName + ".");
+                        conflictsPerCourse.put(course, existingConflicts);
+                    } else {
+                        List<String> newConflictList = new ArrayList<>();
+                        newConflictList.add("I will be missing class on " + dateSlotString(c.meetingTime()) + " for the holiday of " + conf.holiday().eventName + ".");
+                        conflictsPerCourse.put(course, newConflictList);
+                    }
                 }
             }
+
+            for (String course : conflictsPerCourse.keySet()) {
+
+                // See if class should be plural
+                String c = "class";
+                if (conflictsPerCourse.get(course).size() > 1) {
+                    c += "es";
+                }
+                fileWriter.write("\n\n -------" + course + "-------\n");
+                fileWriter.write(" \nDear Professor, \n\n");
+                fileWriter.write("I hope this email finds you well. I am enrolled to take " + course + " with you this semester.\n\n");
+                fileWriter.write("I wanted to reach out to you now to let you know that I am an observant Jew and will have to miss some " + c + " due to conflicts with Jewish holidays.\n\n");
+                for (int i = 0; i < conflictsPerCourse.get(course).size(); i++) {
+                    fileWriter.write(conflictsPerCourse.get(course).get(i));
+                    fileWriter.write("\n");
+                }
+
+                fileWriter.write("""
+
+                        I'm looking forward to taking your class, and hope these absences will not be too much of an inconvenience.
+
+                        Thank you so much for your understanding!
+                        """);
+
+                if (name.length() > 0) {
+                    fileWriter.write("\nBest, \n" + name);
+                }
+
+            }
+            System.out.print("Email(s) generated into the file chagimChelperEmails.txt.\nThank you for using our tool!");
+
+            fileWriter.close();
+        } catch (IOException e) {
+            System.out.println("An error occurred while writing to the email file 'chagimChelperEmails.txt'");
+            System.exit(1);
+            throw new RuntimeException("System.exit() did not exit");
         }
-
-        for (String course : conflictsPerCourse.keySet()) {
-
-            // See if class should be plural
-            String c = "class";
-            if (conflictsPerCourse.get(course).size() > 1) {
-                c += "es";
-            }
-            fileWriter.write("\n\n -------" + course + "-------\n");
-            fileWriter.write(" \nDear Professor, \n\n");
-            fileWriter.write("I hope this email finds you well. I am enrolled to take " + course +  " with you this semester.\n\n");
-            fileWriter.write("I wanted to reach out to you now to let you know that I am an observant Jew and will have to miss some " + c + " due to conflicts with Jewish holidays.\n\n");
-            for (int i = 0; i < conflictsPerCourse.get(course).size(); i++) {
-                fileWriter.write(conflictsPerCourse.get(course).get(i));
-                fileWriter.write("\n");
-            }
-
-            fileWriter.write("\nI'm looking forward to taking your class, and hope these absences will not be too much of an inconvenience.\n" +
-                    "\n" +
-                    "Thank you so much for your understanding!\n");
-
-            if (name.length() > 0) {
-                fileWriter.write("\nBest, \n" + name);
-            }
-
-        }
-        System.out.print("Email(s) generated into the file chagimChelperEmails.txt.\nThank you for using our tool!");
-
-        fileWriter.close();
     }
 
 

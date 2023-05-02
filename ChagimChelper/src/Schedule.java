@@ -33,8 +33,8 @@ public class Schedule {
      *
      * @param filePath  The path to the file, which must be in the .ics format
      */
-    public Schedule(Path filePath) throws IOException {
-        this(Files.readString(filePath));
+    public Schedule(Path filePath) {
+        this(Schedule.getScheduleFromFile(filePath));
     }
 
     /**
@@ -42,7 +42,7 @@ public class Schedule {
      *
      * @param url  The URL to request data from. The response must be a .ics calendar file
      */
-    public Schedule(URI url) throws IOException, InterruptedException {
+    public Schedule(URI url) {
         this(Schedule.getScheduleFromURL(url));
     }
 
@@ -53,14 +53,35 @@ public class Schedule {
      * @return     The response body as a string
 
      */
-    private static String getScheduleFromURL(URI url) throws IOException, InterruptedException {
+    private static String getScheduleFromURL(URI url) {
         HttpClient client = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.ALWAYS).build();
         HttpRequest request = HttpRequest.newBuilder().uri(url).build();
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> response;
+        try {
+            response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        } catch (IOException | InterruptedException e) {
+            System.out.println("An error occurred while making a request to the given url");
+            System.exit(1);
+            throw new RuntimeException("System.exit() did not exit");
+        }
         if (response.statusCode() != 200) {
-            throw new RuntimeException("The response returned status code " + response.statusCode());
+            System.out.println("The request to the url returned unsuccessful status code " + response.statusCode()
+            + ".\nIf this is a PennCoursePlan url, use your browser to check the url is valid."
+            + "\nIf this is a Google Calendar url, use incognito mode to check that the link is publicly viewable");
+            System.exit(1);
+            throw new RuntimeException("System.exit() did not exit");
         }
         return response.body();
+    }
+
+    private static String getScheduleFromFile(Path filePath) {
+        try {
+            return Files.readString(filePath);
+        } catch (IOException e) {
+            System.out.println("An error occurred while reading from the schedule file.\nEnsure that the file exists and is accessible.");
+            System.exit(1);
+            throw new RuntimeException("System.exit() did not exit");
+        }
     }
 
     /**
@@ -69,108 +90,123 @@ public class Schedule {
      * @param icsText  The text of the .ics file
      */
     public Schedule(String icsText) {
-        String icsTextConcat = CachedRegex.pattern("\\R[ \\t]", Pattern.UNICODE_CHARACTER_CLASS).matcher(icsText).replaceAll("");
-        String[] icsLines = CachedRegex.pattern("\\R", Pattern.UNICODE_CHARACTER_CLASS).split(icsTextConcat);
+        try {
+            String icsTextConcat = CachedRegex.pattern("\\R[ \\t]", Pattern.UNICODE_CHARACTER_CLASS).matcher(icsText).replaceAll("");
+            String[] icsLines = CachedRegex.pattern("\\R", Pattern.UNICODE_CHARACTER_CLASS).split(icsTextConcat);
 
-        boolean pennLabsMode = false;
-        this.courses = new ArrayList<>();
+            boolean pennLabsMode = false;
+            this.courses = new ArrayList<>();
 
-        int lineNum = -1;
-        while (++lineNum < icsLines.length) {
-            String line = icsLines[lineNum];
-            if (line.equals("END:VCALENDAR")) {
-                break;
-            } else if (line.equals("PRODID:Penn Labs")) {
-                pennLabsMode = true;
-            } else if (line.equals("BEGIN:VEVENT")) {
-                // Process VEVENT
-                String courseName = null;
-                LocalDateTime startDateTimePenn = null;
-                LocalDateTime endDateTimePenn = null;
-
-                Set<DayOfWeek> rruleWeeklyDays = null;
-                LocalDateTime rruleUntilPenn = null;
-
-                while (++lineNum < icsLines.length) {
-                    line = icsLines[lineNum];
-                    if (line.equals("END:VEVENT")) {
+            int lineNum = -1;
+            label:
+            while (++lineNum < icsLines.length) {
+                String line = icsLines[lineNum];
+                switch (line) {
+                    case "END:VCALENDAR":
+                        break label;
+                    case "PRODID:Penn Labs":
+                        pennLabsMode = true;
                         break;
-                    } else if (line.startsWith("SUMMARY:")) {
-                        courseName = line.substring(8);
-                    }
-                    else if (line.startsWith("DTSTART")) {
-                        ZonedDateTime parsedDateTime = parseDTString(line, pennLabsMode);
-                        startDateTimePenn = parsedDateTime.withZoneSameInstant(Utils.PENN_ZONEID).toLocalDateTime();
-                    } else if (line.startsWith("DTEND")) {
-                        ZonedDateTime parsedDateTime = parseDTString(line, pennLabsMode);
-                        endDateTimePenn = parsedDateTime.withZoneSameInstant(Utils.PENN_ZONEID).toLocalDateTime();
-                    } else if (line.startsWith("RRULE:")) {
-                        String[] components = CachedRegex.pattern("[:;]").split(line);
-                        for (String comp : components) {
-                            if (comp.startsWith("UNTIL=")) {
-                                String untilString = comp.substring(6);
-                                ZonedDateTime parsedDateTime = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmssX")
-                                        .parse(untilString)
-                                        .query(ZonedDateTime::from);
-                                if (pennLabsMode) {
-                                    // See https://github.com/pennlabs/penn-courses/issues/490
-                                    rruleUntilPenn = parsedDateTime.toLocalDateTime();
-                                } else {
-                                    rruleUntilPenn = parsedDateTime.withZoneSameInstant(Utils.PENN_ZONEID).toLocalDateTime();
-                                }
+                    case "BEGIN:VEVENT":
+                        // Process VEVENT
+                        String courseName = null;
+                        LocalDateTime startDateTimePenn = null;
+                        LocalDateTime endDateTimePenn = null;
 
-                            } else if (comp.startsWith("BYDAY=")) {
-                                String allDaysString = comp.substring(6);
-                                String[] dayStrings = CachedRegex.pattern(",").split(allDaysString);
-                                rruleWeeklyDays = Arrays.stream(dayStrings)
-                                        .map(Schedule::parseDayOfWeek)
-                                        .collect(Collectors.toSet());
+                        Set<DayOfWeek> rruleWeeklyDays = null;
+                        LocalDateTime rruleUntilPenn = null;
+
+                        while (++lineNum < icsLines.length) {
+                            line = icsLines[lineNum];
+                            if (line.equals("END:VEVENT")) {
+                                break;
+                            } else if (line.startsWith("SUMMARY:")) {
+                                courseName = line.substring(8);
+                            } else if (line.startsWith("DTSTART")) {
+                                ZonedDateTime parsedDateTime = parseDTString(line, pennLabsMode);
+                                startDateTimePenn = parsedDateTime.withZoneSameInstant(Utils.PENN_ZONEID).toLocalDateTime();
+                            } else if (line.startsWith("DTEND")) {
+                                ZonedDateTime parsedDateTime = parseDTString(line, pennLabsMode);
+                                endDateTimePenn = parsedDateTime.withZoneSameInstant(Utils.PENN_ZONEID).toLocalDateTime();
+                            } else if (line.startsWith("RRULE:")) {
+                                String[] components = CachedRegex.pattern("[:;]").split(line);
+                                for (String comp : components) {
+                                    if (comp.startsWith("UNTIL=")) {
+                                        String untilString = comp.substring(6);
+                                        ZonedDateTime parsedDateTime = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmssX")
+                                                .parse(untilString)
+                                                .query(ZonedDateTime::from);
+                                        if (pennLabsMode) {
+                                            // See https://github.com/pennlabs/penn-courses/issues/490
+                                            rruleUntilPenn = parsedDateTime.toLocalDateTime();
+                                        } else {
+                                            rruleUntilPenn = parsedDateTime.withZoneSameInstant(Utils.PENN_ZONEID).toLocalDateTime();
+                                        }
+
+                                    } else if (comp.startsWith("BYDAY=")) {
+                                        String allDaysString = comp.substring(6);
+                                        String[] dayStrings = CachedRegex.pattern(",").split(allDaysString);
+                                        rruleWeeklyDays = Arrays.stream(dayStrings)
+                                                .map(Schedule::parseDayOfWeek)
+                                                .collect(Collectors.toSet());
+                                    }
+                                }
                             }
                         }
-                    }
+
+                        if (courseName == null || startDateTimePenn == null || endDateTimePenn == null) {
+                            System.out.println("Could not find info for a course, skipping:");
+                            System.out.println("courseName = " + courseName + ", startDateTimePenn = " + startDateTimePenn + ", endDateTimePenn = " + endDateTimePenn);
+                            continue;
+                        }
+
+                        Course course;
+                        if (rruleWeeklyDays != null) {
+                            WeeklyCourse courseW = new WeeklyCourse(courseName, rruleWeeklyDays,
+                                    startDateTimePenn.toLocalTime(), endDateTimePenn.toLocalTime(),
+                                    startDateTimePenn.toLocalDate(), (rruleUntilPenn == null) ? null : rruleUntilPenn.toLocalDate());
+                            course = courseW;
+
+                            if (this.startDate == null || (courseW.startDate != null && this.startDate.isAfter(courseW.startDate))) {
+                                this.startDate = courseW.startDate;
+                            }
+                            if (this.endDate == null || (courseW.endDate != null && this.endDate.isBefore(courseW.endDate))) {
+                                this.endDate = courseW.endDate;
+                            }
+
+                        } else {
+                            SingletonCourse courseS = new SingletonCourse(courseName, startDateTimePenn, endDateTimePenn);
+                            course = courseS;
+                            if (this.startDate == null || (courseS.interval.start != null && courseS.interval.start.toLocalDate().isBefore(this.startDate))) {
+                                this.startDate = courseS.interval.start.toLocalDate();
+                            }
+                            if (this.endDate == null || (courseS.interval.end != null && courseS.interval.end.toLocalDate().isAfter(this.endDate))) {
+                                this.endDate = courseS.interval.end.toLocalDate();
+                            }
+                        }
+                        courses.add(course);
+                        break;
                 }
-
-                if (courseName == null || startDateTimePenn == null || endDateTimePenn == null) {
-                    System.out.println("Could not find info for a course, skipping:");
-                    System.out.println("courseName = " + courseName + ", startDateTimePenn = " + startDateTimePenn + ", endDateTimePenn = " + endDateTimePenn);
-                    continue;
-                }
-
-                Course course = null;
-                if (rruleWeeklyDays != null) {
-                    WeeklyCourse courseW = new WeeklyCourse(courseName, rruleWeeklyDays,
-                            startDateTimePenn.toLocalTime(), endDateTimePenn.toLocalTime(),
-                            startDateTimePenn.toLocalDate(), (rruleUntilPenn == null) ? null : rruleUntilPenn.toLocalDate());
-                    course = courseW;
-
-                    if (this.startDate == null || (courseW.startDate != null && this.startDate.isAfter(courseW.startDate))) {
-                        this.startDate = courseW.startDate;
-                    }
-                    if (this.endDate == null || (courseW.endDate != null && this.endDate.isBefore(courseW.endDate))) {
-                        this.endDate = courseW.endDate;
-                    }
-
-                } else {
-                    SingletonCourse courseS = new SingletonCourse(courseName, startDateTimePenn, endDateTimePenn);
-                    course = courseS;
-                    if (this.startDate == null || (courseS.interval.start != null && courseS.interval.start.toLocalDate().isBefore(this.startDate))) {
-                        this.startDate = courseS.interval.start.toLocalDate();
-                    }
-                    if (this.endDate == null || (courseS.interval.end != null && courseS.interval.end.toLocalDate().isAfter(this.endDate))) {
-                        this.endDate = courseS.interval.end.toLocalDate();
-                    }
-                }
-                courses.add(course);
             }
+
+            for (Course c : this.courses) {
+                if (c instanceof WeeklyCourse wc) {
+                    if (wc.endDate == null) {
+                        wc.endDate = this.endDate;
+                    }
+                }
+                c.assertValid();
+            }
+        } catch (Exception e) {
+            System.out.println("An error occurred while parsing your schedule. Ensure that it is formatted correctly");
+            System.exit(1);
+            throw new RuntimeException("System.exit() did not exit");
         }
 
-        for (Course c : this.courses) {
-            if (c instanceof WeeklyCourse wc) {
-                if (wc.endDate == null) {
-                    wc.endDate = this.endDate;
-                }
-            }
-            c.assertValid();
+        if (this.startDate == null || this.endDate == null || this.courses == null || this.courses.isEmpty()) {
+            System.out.println("No courses were found when parsing your schedule. Ensure that it is formatted correctly");
+            System.exit(1);
+            throw new RuntimeException("System.exit() did not exit");
         }
     }
 

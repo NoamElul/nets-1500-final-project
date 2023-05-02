@@ -29,11 +29,18 @@ public class HebCalAPI {
      * @param endDate    The ending date, assumed to be in Penn's timezone
      * @return           A list of holidays in the give time period
      */
-    public static List<HolidayInterval> getHolidays(LocalDate startDate, LocalDate endDate) throws IOException, InterruptedException {
+    public static List<HolidayInterval> getHolidays(LocalDate startDate, LocalDate endDate) {
         String url = getURL(startDate, endDate);
         String response = getResponse(url);
-        var splitResponse = splitResponse(response);
-        var parsedReponse = parseList(splitResponse);
+        List<HebCalAPI.HolidayInterval> parsedReponse;
+        try {
+            var splitResponse = splitResponse(response);
+            parsedReponse = parseList(splitResponse);
+        } catch (Exception e) {
+            System.out.println("An error occurred while parsing the holiday API response");
+            System.exit(1);
+            throw new RuntimeException("System.exit() did not exit");
+        }
         return parsedReponse;
     }
 
@@ -57,13 +64,22 @@ public class HebCalAPI {
      * @param url  The api url to request from, as a string
      * @return     The response body, as a string
      */
-    private static String getResponse(String url) throws IOException, InterruptedException {
+    private static String getResponse(String url) {
         URI requestUri = URI.create(url);
         HttpClient client = HttpClient.newHttpClient();
         HttpRequest request = HttpRequest.newBuilder().uri(requestUri).build();
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> response;
+        try {
+            response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        } catch (IOException | InterruptedException e) {
+            System.out.println("An error occurred while making a request to the holiday api url " + requestUri);
+            System.exit(1);
+            throw new RuntimeException("System.exit() did not exit");
+        }
         if (response.statusCode() != 200) {
-            throw new RuntimeException("The response returned status code " + response.statusCode());
+            System.out.println("The request to the holiday API url '" + requestUri + "' returned unsuccessful status code " + response.statusCode());
+            System.exit(1);
+            throw new RuntimeException("System.exit() did not exit");
         }
         return response.body();
     }
