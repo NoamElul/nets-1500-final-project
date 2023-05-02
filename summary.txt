@@ -10,10 +10,10 @@ Description: For an observant Orthodox Jewish student at Penn, it can be tough w
 Project Categories:
 We used Physical Networks and Information Networks because we retrieved infomration on the times of the holidays from the world wide web via the internet using an API. We also did Document Search by parsing .ics files for student's schedules.
 
-Work Breakdown:
-Noam:
+Work Breakdown:  We all helped each other with each part but this is the main contributers for each.
+Noam: Interaction with HebCal API, parsing ICS schedules functionality, formatting holiday names, helper files such as CachedRegex, HebCalAPI, Interval, Schedule.
 
-Rebecca:
+Rebecca: Main file, dealing with user input functionality, formatting our response outputs inlcuding dates/ courses, generating emails functionality
 
-Hannah:
+Hannah: Testing all our functionalities, debugging major flaws from bugs found, Adding error messages/handling, creating user manual and readme
 
