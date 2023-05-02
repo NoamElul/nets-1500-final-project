@@ -13,7 +13,7 @@ We used Physical Networks and Information Networks because we retrieved infomrat
 Work Breakdown:  We all helped each other with each part but this is the main contributers for each.
 Noam: Interaction with HebCal API, parsing ICS schedules functionality, formatting holiday names, helper files such as CachedRegex, HebCalAPI, Interval, Schedule.
 
-Rebecca: Main file, dealing with user input functionality, formatting our response outputs inlcuding dates/ courses, generating emails functionality
+Rebecca: Main file, dealing with user input functionality, formatting our response outputs including dates/ courses, generating emails functionality
 
-Hannah: Testing all our functionalities, debugging major flaws from bugs found, Adding error messages/handling, creating user manual and readme
+Hannah: Testing all our functionalities, debugging major flaws from bugs found, Adding error messages/handling, creating user manual and readme
 
