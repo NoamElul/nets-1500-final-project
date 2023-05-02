@@ -106,9 +106,6 @@ public class Main {
         File file = new File("chagimChelperEmails.txt");
         try {
             boolean result = file.createNewFile();
-            if (!result) {
-                System.out.println("Error occurred creating email file.");
-            }
         } catch (IOException e) {
             System.out.println("Error occurred creating email file.");
         }
