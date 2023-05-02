@@ -8,5 +8,12 @@ Names: Noam Elul, Rebecca Metzman, Hannah Shedlo
 Description: For an observant Orthodox Jewish student at Penn, it can be tough when the semester is starting to figure out which chagim (Hebrew for holidays) will conflict with your courses. These students need this information to figure out which courses to submit course absence reports for, to email this information to their professors in the first two weeks of classes, and so a student may choose to swap a course if it conflicts with too many holidays. Thus, we have created ChagimChelper, a tool to help this niche population of Penn students figure out which holidays conflict with their various courses. A student provides a .ics form of their schedule (downloadable from PennCoursePlan) and the application outputs the conflicts. Additionally, if the users opts in, the application will generate sample email templates to send to their professors that are output to a .txt file for the student's convenience. 
 
 Project Categories:
+We used Physical Networks and Information Networks because we retrieved infomration on the times of the holidays from the world wide web via the internet using an API. We also did Document Search by parsing .ics files for student's schedules.
 
+Work Breakdown:
+Noam:
+
+Rebecca:
+
+Hannah:
 
